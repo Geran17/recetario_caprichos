@@ -1,5 +1,6 @@
 """Presentación Tkinter de la planificación y preparación diaria."""
 
+import math
 import tkinter as tk
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
@@ -143,6 +144,17 @@ class PlanificacionDiariaVista(tk.Frame):
             bg="#EEF0EC",
             fg=c["texto"],
         ).pack(side="left", padx=8)
+        tk.Button(
+            acciones,
+            text="＋  Agregar ingredientes en tabla",
+            command=self._agregar_ingredientes_en_tabla,
+            cursor="hand2",
+            relief="flat",
+            padx=13,
+            pady=7,
+            bg="#EEF0EC",
+            fg=c["texto"],
+        ).pack(side="left")
         tk.Button(
             acciones,
             text="Guardar planificación",
@@ -385,34 +397,10 @@ class PlanificacionDiariaVista(tk.Frame):
         self._on_consultar({"fecha": self.fecha.get()})
 
     def _agregar_ingrediente(self) -> None:
-        menu = self._registro_seleccionado(
-            self.menu.get(),
-            self._menus,
-            "id_menu_base",
-        )
-        if not menu:
-            messagebox.showinfo(
-                "Selecciona un menú",
-                "Primero selecciona un menú base para ver sus ingredientes.",
-                parent=self,
-            )
-            return
-        ingredientes_menu = self._ingredientes_del_menu(menu, self._ingredientes)
-        ids_en_borrador = {
-            str(item["id_ingrediente"]) for item in self._items_borrador
-        }
-        ingredientes_menu = [
-            item
-            for item in ingredientes_menu
-            if str(item.get("id_ingrediente", "")) not in ids_en_borrador
-        ]
+        ingredientes_menu = self._ingredientes_disponibles()
         if not ingredientes_menu:
-            messagebox.showinfo(
-                "Ingredientes",
-                "El menú seleccionado no tiene ingredientes disponibles para agregar.",
-                parent=self,
-            )
             return
+
         dialogo = tk.Toplevel(self)
         dialogo.title("Agregar ingrediente utilizado")
         dialogo.transient(self.winfo_toplevel())
@@ -431,20 +419,32 @@ class PlanificacionDiariaVista(tk.Frame):
             for item in ingredientes_menu
         ]
         ingrediente = tk.StringVar(value=opciones_ingredientes[0])
-        ttk.Combobox(
+        selector_ingrediente = ttk.Combobox(
             dialogo,
             textvariable=ingrediente,
             values=opciones_ingredientes,
             state="readonly",
             width=32,
-        ).grid(row=0, column=1, padx=(0, 18), pady=(18, 6))
+        )
+        selector_ingrediente.grid(
+            row=0, column=1, padx=(0, 18), pady=(18, 6)
+        )
         cantidad = tk.StringVar()
         self._dialogo_campo(dialogo, 1, "Cantidad", cantidad)
         unidades = [
             f"{item.get('id_unidad', '')} — {item.get('nombre', '')} ({item.get('abreviatura', '')})"
             for item in self._unidades
         ]
-        unidad = tk.StringVar(value=unidades[0] if unidades else "")
+        unidad_predeterminada = str(ingredientes_menu[0].get("id_unidad", ""))
+        indice_unidad = next(
+            (
+                indice
+                for indice, item in enumerate(self._unidades)
+                if str(item.get("id_unidad", "")) == unidad_predeterminada
+            ),
+            0,
+        )
+        unidad = tk.StringVar(value=unidades[indice_unidad] if unidades else "")
         tk.Label(
             dialogo,
             text="Unidad",
@@ -459,6 +459,21 @@ class PlanificacionDiariaVista(tk.Frame):
             width=32,
         ).grid(row=2, column=1, padx=(0, 18), pady=6)
 
+        def actualizar_unidad(_evento: tk.Event | None = None) -> None:
+            indice = opciones_ingredientes.index(ingrediente.get())
+            unidad_base = str(ingredientes_menu[indice].get("id_unidad", ""))
+            indice_base = next(
+                (
+                    indice_unidad
+                    for indice_unidad, registro in enumerate(self._unidades)
+                    if str(registro.get("id_unidad", "")) == unidad_base
+                ),
+                0,
+            )
+            unidad.set(unidades[indice_base] if unidades else "")
+
+        selector_ingrediente.bind("<<ComboboxSelected>>", actualizar_unidad)
+
         def agregar() -> None:
             indice = opciones_ingredientes.index(ingrediente.get())
             item = ingredientes_menu[indice]
@@ -470,21 +485,7 @@ class PlanificacionDiariaVista(tk.Frame):
                 "id_unidad": str(unidad_item.get("id_unidad", "")),
                 "unidad": str(unidad_item.get("nombre", "")),
             }
-            self._items_borrador.append(registro)
-            etiqueta_fila = (
-                "fila-par" if len(self._tabla_ingredientes.get_children()) % 2 == 0 else "fila-impar"
-            )
-            self._tabla_ingredientes.insert(
-                "",
-                "end",
-                values=(
-                    registro["id_ingrediente"],
-                    registro["ingrediente"],
-                    registro["cantidad"],
-                    registro["unidad"],
-                ),
-                tags=(etiqueta_fila,),
-            )
+            self._agregar_al_borrador(registro)
             dialogo.destroy()
 
         tk.Button(
@@ -497,6 +498,260 @@ class PlanificacionDiariaVista(tk.Frame):
             pady=7,
         ).grid(row=3, column=0, columnspan=2, sticky="e", padx=18, pady=(12, 18))
         dialogo.grab_set()
+
+    def _agregar_ingredientes_en_tabla(self) -> None:
+        menu = self._registro_seleccionado(
+            self.menu.get(),
+            self._menus,
+            "id_menu_base",
+        )
+        if not menu:
+            messagebox.showinfo(
+                "Selecciona un menú",
+                "Primero selecciona un menú base para ver sus ingredientes.",
+                parent=self,
+            )
+            return
+        ingredientes_menu = self._ingredientes_del_menu(menu, self._ingredientes)
+        if not ingredientes_menu:
+            messagebox.showinfo(
+                "Ingredientes",
+                "El menú seleccionado no tiene ingredientes asociados.",
+                parent=self,
+            )
+            return
+        borrador_por_ingrediente = {
+            item["id_ingrediente"]: item for item in self._items_borrador
+        }
+
+        dialogo = tk.Toplevel(self)
+        dialogo.title("Agregar ingredientes utilizados")
+        dialogo.transient(self.winfo_toplevel())
+        dialogo.geometry("760x500")
+        dialogo.minsize(600, 300)
+        dialogo.columnconfigure(0, weight=1)
+        dialogo.rowconfigure(1, weight=1)
+        dialogo.protocol("WM_DELETE_WINDOW", dialogo.destroy)
+        c = self._colores
+
+        tk.Label(
+            dialogo,
+            text=(
+                "Ingresa las cantidades. Deja en blanco lo que no agregarás; "
+                "los ingredientes del borrador aparecen con sus valores actuales."
+            ),
+            bg=c["panel"],
+            fg=c["secundario"],
+            anchor="w",
+            wraplength=720,
+            padx=16,
+            pady=12,
+        ).grid(row=0, column=0, sticky="ew")
+
+        contenedor = tk.Frame(dialogo, bg=c["panel"])
+        contenedor.grid(row=1, column=0, sticky="nsew", padx=16)
+        contenedor.columnconfigure(0, weight=1)
+        contenedor.rowconfigure(0, weight=1)
+
+        lienzo = tk.Canvas(contenedor, highlightthickness=0, bg=c["panel"])
+        barra = ttk.Scrollbar(contenedor, orient="vertical", command=lienzo.yview)
+        lienzo.configure(yscrollcommand=barra.set)
+        lienzo.grid(row=0, column=0, sticky="nsew")
+        barra.grid(row=0, column=1, sticky="ns")
+        filas = tk.Frame(lienzo, bg=c["panel"])
+        ventana = lienzo.create_window((0, 0), window=filas, anchor="nw")
+        filas.bind(
+            "<Configure>",
+            lambda _evento: lienzo.configure(scrollregion=lienzo.bbox("all")),
+        )
+        lienzo.bind(
+            "<Configure>",
+            lambda evento: lienzo.itemconfigure(ventana, width=evento.width),
+        )
+        for columna, (etiqueta, peso) in enumerate(
+            (("Ingrediente", 3), ("Cantidad utilizada", 1), ("Unidad", 2))
+        ):
+            filas.columnconfigure(columna, weight=peso)
+            tk.Label(
+                filas,
+                text=etiqueta,
+                bg="#E8F0EB",
+                fg=c["primario"],
+                font=("TkDefaultFont", 9, "bold"),
+                anchor="w",
+                padx=8,
+                pady=8,
+            ).grid(row=0, column=columna, sticky="ew", padx=(0, 1))
+
+        opciones_unidades = [
+            f"{item.get('id_unidad', '')} — {item.get('nombre', '')} ({item.get('abreviatura', '')})"
+            for item in self._unidades
+        ]
+        entradas: list[tuple[Registro, tk.StringVar, tk.StringVar]] = []
+        for fila, ingrediente in enumerate(ingredientes_menu, start=1):
+            id_ingrediente = str(ingrediente.get("id_ingrediente", ""))
+            existente = borrador_por_ingrediente.get(id_ingrediente)
+            fondo = "#F8FAF8" if fila % 2 else "#FFFFFF"
+            tk.Label(
+                filas,
+                text=str(ingrediente.get("nombre", "")),
+                bg=fondo,
+                fg=c["texto"],
+                anchor="w",
+                padx=8,
+                pady=6,
+            ).grid(row=fila, column=0, sticky="ew", padx=(0, 1), pady=1)
+            cantidad = tk.StringVar(
+                value=existente.get("cantidad", "") if existente else ""
+            )
+            ttk.Entry(filas, textvariable=cantidad).grid(
+                row=fila, column=1, sticky="ew", padx=(0, 1), pady=1
+            )
+            id_unidad_base = str(
+                existente.get("id_unidad", ingrediente.get("id_unidad", ""))
+                if existente
+                else ingrediente.get("id_unidad", "")
+            )
+            indice_unidad = next(
+                (
+                    indice
+                    for indice, unidad in enumerate(self._unidades)
+                    if str(unidad.get("id_unidad", "")) == id_unidad_base
+                ),
+                0,
+            )
+            unidad = tk.StringVar(
+                value=opciones_unidades[indice_unidad] if opciones_unidades else ""
+            )
+            ttk.Combobox(
+                filas,
+                textvariable=unidad,
+                values=opciones_unidades,
+                state="readonly" if opciones_unidades else "normal",
+            ).grid(row=fila, column=2, sticky="ew", padx=(0, 1), pady=1)
+            entradas.append((ingrediente, cantidad, unidad))
+
+        def agregar() -> None:
+            registros: list[dict[str, str]] = []
+            for ingrediente, cantidad, unidad in entradas:
+                valor_cantidad = cantidad.get().strip()
+                if not valor_cantidad:
+                    continue
+                try:
+                    cantidad_numerica = float(valor_cantidad)
+                except ValueError:
+                    messagebox.showerror(
+                        "Cantidad inválida",
+                        f"La cantidad de {ingrediente.get('nombre', 'un ingrediente')} debe ser numérica.",
+                        parent=dialogo,
+                    )
+                    return
+                if not math.isfinite(cantidad_numerica) or cantidad_numerica <= 0:
+                    messagebox.showerror(
+                        "Cantidad inválida",
+                        "Las cantidades utilizadas deben ser mayores que cero.",
+                        parent=dialogo,
+                    )
+                    return
+                if not opciones_unidades or unidad.get() not in opciones_unidades:
+                    messagebox.showerror(
+                        "Unidad requerida",
+                        f"Selecciona una unidad para {ingrediente.get('nombre', 'cada ingrediente')}.",
+                        parent=dialogo,
+                    )
+                    return
+                unidad_item = self._unidades[opciones_unidades.index(unidad.get())]
+                registros.append(
+                    {
+                        "id_ingrediente": str(ingrediente.get("id_ingrediente", "")),
+                        "ingrediente": str(ingrediente.get("nombre", "")),
+                        "cantidad": valor_cantidad,
+                        "id_unidad": str(unidad_item.get("id_unidad", "")),
+                        "unidad": str(unidad_item.get("nombre", "")),
+                    }
+                )
+            if not registros:
+                messagebox.showinfo(
+                    "Sin cantidades",
+                    "Ingresa al menos una cantidad para agregar ingredientes.",
+                    parent=dialogo,
+                )
+                return
+            for registro in registros:
+                self._agregar_al_borrador(registro)
+            dialogo.destroy()
+
+        tk.Button(
+            dialogo,
+            text="Agregar al borrador",
+            command=agregar,
+            bg=c["primario"],
+            fg="#FFFFFF",
+            padx=12,
+            pady=7,
+        ).grid(row=2, column=0, sticky="e", padx=16, pady=12)
+        dialogo.grab_set()
+
+    def _ingredientes_disponibles(self) -> list[Registro]:
+        menu = self._registro_seleccionado(
+            self.menu.get(),
+            self._menus,
+            "id_menu_base",
+        )
+        if not menu:
+            messagebox.showinfo(
+                "Selecciona un menú",
+                "Primero selecciona un menú base para ver sus ingredientes.",
+                parent=self,
+            )
+            return []
+        ingredientes_menu = self._ingredientes_del_menu(menu, self._ingredientes)
+        ids_en_borrador = {
+            str(item["id_ingrediente"]) for item in self._items_borrador
+        }
+        disponibles = [
+            item
+            for item in ingredientes_menu
+            if str(item.get("id_ingrediente", "")) not in ids_en_borrador
+        ]
+        if not disponibles:
+            messagebox.showinfo(
+                "Ingredientes",
+                "El menú seleccionado no tiene ingredientes disponibles para agregar.",
+                parent=self,
+            )
+        return disponibles
+
+    def _agregar_al_borrador(self, registro: dict[str, str]) -> None:
+        for indice, existente in enumerate(self._items_borrador):
+            if existente["id_ingrediente"] != registro["id_ingrediente"]:
+                continue
+            self._items_borrador[indice] = registro
+            fila = self._tabla_ingredientes.get_children()[indice]
+            self._tabla_ingredientes.item(
+                fila,
+                values=(
+                    registro["id_ingrediente"],
+                    registro["ingrediente"],
+                    registro["cantidad"],
+                    registro["unidad"],
+                ),
+            )
+            return
+        self._items_borrador.append(registro)
+        indice = len(self._tabla_ingredientes.get_children())
+        etiqueta_fila = "fila-par" if indice % 2 == 0 else "fila-impar"
+        self._tabla_ingredientes.insert(
+            "",
+            "end",
+            values=(
+                registro["id_ingrediente"],
+                registro["ingrediente"],
+                registro["cantidad"],
+                registro["unidad"],
+            ),
+            tags=(etiqueta_fila,),
+        )
 
     @staticmethod
     def _ingredientes_del_menu(

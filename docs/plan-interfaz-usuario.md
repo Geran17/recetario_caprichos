@@ -222,7 +222,9 @@ de ingredientes realmente utilizados, consulta por fecha y persistencia. La
 planificación y sus detalles de ingredientes se guardan en una misma transacción.
 Al agregar un ingrediente utilizado, la lista se filtra según los ingredientes
 asociados al menú base seleccionado; al cambiar de menú se confirma antes de
-limpiar los ingredientes pendientes del borrador.
+limpiar los ingredientes pendientes del borrador. Además, el usuario puede
+cargar varios ingredientes en un diálogo tabular; la unidad de cada ingrediente
+se preselecciona según la unidad configurada en el catálogo de ingredientes.
 
 **Criterios de aceptación:**
 

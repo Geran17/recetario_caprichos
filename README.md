@@ -8,6 +8,11 @@ reportes exportables a CSV y PDF.
 La interfaz está desarrollada con Tkinter y los datos se almacenan localmente
 en SQLite.
 
+La navegación usa un set opcional de emojis. Se muestran cuando Tk detecta una
+fuente emoji conocida para el sistema (Segoe UI Emoji en Windows, Noto/Twemoji/
+JoyPixels en Linux o Apple Color Emoji en macOS); de lo contrario, la interfaz
+presenta las etiquetas de texto sin iconos.
+
 ## Funcionalidades
 
 - Gestión de unidades, cocineros e ingredientes.

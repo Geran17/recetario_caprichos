@@ -2,9 +2,11 @@
 
 import tkinter as tk
 from collections.abc import Mapping
+from tkinter import font as tkfont
 from tkinter import ttk
 
 from .catalogos import CocinerosVista, IngredientesVista, UnidadesVista
+from .iconos import sistema_tiene_fuente_emoji, texto_con_icono
 from .menus_base import MenusBaseVista
 from .planificacion_diaria import PlanificacionDiariaVista
 from .produccion import ProduccionVista
@@ -54,6 +56,9 @@ class Aplicacion(tk.Tk):
         self.configure(bg=self.COLOR_FONDO)
 
         self._configurar_estilos()
+        self._emojis_habilitados = sistema_tiene_fuente_emoji(
+            tkfont.families(self)
+        )
         self._botones_navegacion: dict[str, tk.Button] = {}
         self._paginas: dict[str, tk.Frame] = {}
         self._vistas_seccion: dict[str, tk.Frame] = {}
@@ -236,7 +241,14 @@ class Aplicacion(tk.Tk):
         for indice, (clave, etiqueta) in enumerate(self.SECCIONES, start=2):
             boton = tk.Button(
                 lateral,
-                text=f"  {etiqueta}",
+                text=(
+                    "  "
+                    + texto_con_icono(
+                        clave,
+                        etiqueta,
+                        emojis_habilitados=self._emojis_habilitados,
+                    )
+                ),
                 anchor="w",
                 relief="flat",
                 borderwidth=0,
