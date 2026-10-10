@@ -12,6 +12,7 @@ from pathlib import Path
 from tkinter import messagebox
 from typing import Any
 
+from src.configuracion import ruta_base_datos, ruta_esquema
 from src.modelo.consultas import Consultas
 from src.modelo.conversiones_unidades import (
     analizar_cantidad,
@@ -49,8 +50,8 @@ from src.vista.produccion import ProduccionVista
 from src.vista.reportes import ReportesVista
 
 
-RUTA_BASE_DATOS = Path(__file__).resolve().parents[2] / "data" / "recetario.db"
-RUTA_ESQUEMA = Path(__file__).resolve().parents[2] / "scripts" / "database.sql"
+RUTA_BASE_DATOS = ruta_base_datos()
+RUTA_ESQUEMA = ruta_esquema()
 
 
 def inicializar_base_si_no_existe(

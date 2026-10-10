@@ -46,6 +46,25 @@ Al iniciar por primera vez, la aplicación crea `data/recetario.db` y carga el
 esquema y los datos de ejemplo definidos en [`scripts/database.sql`](scripts/database.sql).
 La base local se conserva entre ejecuciones.
 
+## Ejecutable independiente para Windows
+
+El ejecutable se construye en Windows para que PyInstaller incluya el intérprete,
+Tkinter y las dependencias correctas del sistema. Con Python 3.14 instalado,
+abre PowerShell en el repositorio y ejecuta:
+
+```powershell
+.\scripts\construir_windows.ps1
+```
+
+El archivo `dist\RecetarioCaprichos.exe` es un ejecutable de un solo archivo y
+no requiere instalar Python en el equipo donde se ejecuta. En el primer inicio
+crea la base de datos y carga el esquema y los datos de ejemplo. La base se
+conserva, independiente del ejecutable, en
+`%LOCALAPPDATA%\RecetarioCaprichos\data\recetario.db`; esto permite actualizar o
+mover el programa sin perder los datos. El ejecutable todavía debe distribuirse
+junto a los archivos que Windows requiera en el sistema, como el runtime de
+Microsoft Visual C++ si el equipo no lo tiene.
+
 ## Pruebas
 
 ```bash

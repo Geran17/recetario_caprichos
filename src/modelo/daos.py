@@ -8,6 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, ClassVar, Generic, Iterator, Mapping, TypeVar
 
+from src.configuracion import ruta_base_datos
 from src.modelo.consultas import Consultas
 from src.modelo.dtos import (
     CocineroDTO,
@@ -22,7 +23,7 @@ from src.modelo.dtos import (
 )
 
 DTO = TypeVar("DTO")
-DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[2] / "data" / "recetario.db"
+DEFAULT_DATABASE_PATH = ruta_base_datos()
 
 
 class SQLiteDAO(ABC, Generic[DTO]):
